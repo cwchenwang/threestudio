@@ -23,7 +23,8 @@ class NeRFDiff(BaseLift3DSystem):
     def configure(self):
         # create geometry, material, background, renderer
         super().configure()
-        self.edit_frames = {}
+        self.guidance_imgs = []
+        self.guidance_imgs_info = {} # rays etc.
         self.perceptual_loss = PerceptualLoss().eval().to(get_device())
 
     def forward(self, batch: Dict[str, Any]) -> Dict[str, Any]:
@@ -34,13 +35,24 @@ class NeRFDiff(BaseLift3DSystem):
 
     def on_fit_start(self) -> None:
         super().on_fit_start()
-        # only used in training
-        self.prompt_processor = threestudio.find(self.cfg.prompt_processor_type)(
-            self.cfg.prompt_processor
-        )
+        # no prompt processor
         self.guidance = threestudio.find(self.cfg.guidance_type)(self.cfg.guidance)
+        self.input_image = self.trainer.datamodule.train_dataloader().dataset.get_all_images()
+        self.save_image_grid(
+            "all_training_images.png",
+            [
+                {"type": "rgb", "img": self.input_image, "kwargs": {"data_format": "HWC"}}
+            ],
+            name="on_fit_start",
+            step=self.true_global_step,
+        )
 
     def training_step(self, batch, batch_idx):
+        if self.global_step == 0: 
+            # update guidance images
+            self.guidance_imgs = self.guidance.generate(self.input_image.permute(0,3,1,2), batch['random_camera']['elevation'], batch['random_camera']['azimuth'], batch['random_camera']['camera_distances'], ddim_steps=3)
+            self.guidance_imgs_info = batch['random_camera']
+
         if torch.is_tensor(batch["index"]):
             batch_index = batch["index"].item()
         else:
@@ -56,22 +68,6 @@ class NeRFDiff(BaseLift3DSystem):
         else:
             gt_rgb = origin_gt_rgb
         out = self(batch)
-        # if (
-        #     self.cfg.per_editing_step > 0
-        #     and self.global_step > self.cfg.start_editing_step
-        # ):
-        #     prompt_utils = self.prompt_processor()
-        #     if (
-        #         not batch_index in self.edit_frames
-        #         or self.global_step % self.cfg.per_editing_step == 0
-        #     ):
-        #         self.renderer.eval()
-        #         full_out = self(batch)
-        #         self.renderer.train()
-        #         result = self.guidance(
-        #             full_out["comp_rgb"], origin_gt_rgb, prompt_utils
-        #         )
-        #         self.edit_frames[batch_index] = result["edit_images"].detach().cpu()
 
         loss = 0.0
         guidance_out = {

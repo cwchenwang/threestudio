@@ -5,4 +5,5 @@ from . import (
     stable_diffusion_guidance,
     stable_diffusion_vsd_guidance,
     zero123_guidance,
+    nerfdiff_zero123_guidance
 )

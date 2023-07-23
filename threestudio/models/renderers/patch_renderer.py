@@ -42,11 +42,12 @@ class PatchRenderer(VolumeRenderer):
         rays_d: Float[Tensor, "B H W 3"],
         light_positions: Float[Tensor, "B 3"],
         bg_color: Optional[Tensor] = None,
+        render_full: bool = False,
         **kwargs
     ) -> Dict[str, Float[Tensor, "..."]]:
         B, H, W, _ = rays_o.shape
 
-        if self.base_renderer.training:
+        if (not render_full) and self.base_renderer.training:
             downsample = self.cfg.global_downsample
             global_rays_o = torch.nn.functional.interpolate(
                 rays_o.permute(0, 3, 1, 2),

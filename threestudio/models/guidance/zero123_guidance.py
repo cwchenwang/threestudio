@@ -444,6 +444,7 @@ class Zero123Guidance(BaseObject):
         ddim_steps=50,
         post_process=True,
         ddim_eta=1,
+        stop_at=None # denoise stop_at steps
     ):
         if c_crossattn is None:
             c_crossattn, c_concat = self.get_img_embeds(image)
@@ -452,7 +453,7 @@ class Zero123Guidance(BaseObject):
             elevation, azimuth, camera_distances, c_crossattn, c_concat
         )
 
-        imgs = self.gen_from_cond(cond, scale, ddim_steps, post_process, ddim_eta)
+        imgs = self.gen_from_cond(cond, scale, ddim_steps, post_process, ddim_eta, stop_at)
 
         return imgs
 
@@ -465,13 +466,15 @@ class Zero123Guidance(BaseObject):
         ddim_steps=50,
         post_process=True,
         ddim_eta=1,
+        stop_at=None
     ):
         # produce latents loop
         B = cond["c_crossattn"][0].shape[0] // 2
         latents = torch.randn((B, 4, 32, 32), device=self.device)
         self.scheduler.set_timesteps(ddim_steps)
 
-        for t in self.scheduler.timesteps:
+        timesteps = self.scheduler.timesteps if stop_at is None else self.scheduler.timesteps[:stop_at]
+        for t in timesteps:
             x_in = torch.cat([latents] * 2)
             t_in = torch.cat([t.reshape(1).repeat(B)] * 2).to(self.device)
 

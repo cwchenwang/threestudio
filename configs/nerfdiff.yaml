@@ -18,7 +18,7 @@ data: # threestudio/data/image.py -> SingleImageDataModuleConfig
   random_camera: # threestudio/data/uncond.py -> RandomCameraDataModuleConfig
     height: 256
     width: 256
-    batch_size: 12
+    batch_size: 30
     # resolution_milestones: [200, 300]
     eval_height: 512
     eval_width: 512
@@ -43,8 +43,8 @@ data: # threestudio/data/image.py -> SingleImageDataModuleConfig
 
 system_type: "nerfdiff-system"
 system:
-  start_editing_step: 20000
-  per_editing_step: 10
+  start_alternate_step: 20000
+  per_alternate_step: 10
 
   geometry_type: "implicit-volume"
   geometry:

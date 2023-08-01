@@ -42,6 +42,8 @@ class SaverMixin:
             return [self.convert_data(d) for d in data]
         elif isinstance(data, dict):
             return {k: self.convert_data(v) for k, v in data.items()}
+        elif isinstance(data, int):
+            pass
         else:
             raise TypeError(
                 "Data must be in type numpy.ndarray, torch.Tensor, list or dict, getting",

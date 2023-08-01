@@ -37,6 +37,7 @@ class RandomCameraDataModuleConfig:
     n_test_views: int = 120
     elevation_range: Tuple[float, float] = (-10, 90)
     azimuth_range: Tuple[float, float] = (-180, 180)
+    uniform_sphere: bool = False
     camera_distance_range: Tuple[float, float] = (1, 1.5)
     fovy_range: Tuple[float, float] = (
         40,
@@ -186,6 +187,39 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
             )
         azimuth = azimuth_deg * math.pi / 180
 
+        def fibonacci_sphere(samples=1000, semisphere=True):
+            if semisphere:
+                samples *= 2
+            points = []
+            phi = math.pi * (math.sqrt(5.0) - 1.0)  # golden angle in radians
+            for i in range(samples):
+                y = 1 - (i / float(samples - 1)) * 2  # y goes from 1 to -1
+                radius = math.sqrt(1 - y * y)  # radius at y
+                theta = phi * i  # golden angle increment
+                x = math.cos(theta) * radius
+                z = math.sin(theta) * radius
+                points.append([x, z, y])
+            import numpy as np
+
+            points = np.array(points)
+            if semisphere:
+                z_mask = points[..., -1] >= 0  ### Select pts in upper hemisphere
+                points = points[z_mask]
+            return points
+
+        if self.cfg.uniform_sphere:
+            pos = torch.from_numpy(fibonacci_sphere(samples=self.batch_size))[
+                : self.batch_size
+            ].float()
+            elevation = torch.asin(pos[:, -1])
+            # elevation[elevation > 1.1] = 1.1
+            azimuth = torch.atan2(
+                pos[:, 1] / torch.cos(elevation), pos[:, 0] / torch.cos(elevation)
+            )
+            azimuth[azimuth < -math.pi] += math.pi
+            elevation_deg = elevation / math.pi * 180.0
+            azimuth_deg = azimuth / math.pi * 180.0
+
         # sample distances from a uniform distribution bounded by distance_range
         camera_distances: Float[Tensor, "B"] = (
             torch.rand(self.batch_size)
@@ -301,6 +335,8 @@ class RandomCameraIterableDataset(IterableDataset, Updateable):
             [c2w3x4, torch.zeros_like(c2w3x4[:, :1])], dim=1
         )
         c2w[:, 3, 3] = 1.0
+
+        # import pdb; pdb.set_trace();
 
         # get directions by dividing directions_unit_focal by focal length
         focal_length: Float[Tensor, "B"] = 0.5 * self.height / torch.tan(0.5 * fovy)

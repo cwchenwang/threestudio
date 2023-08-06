@@ -6,8 +6,8 @@ seed: 0
 data_type: "single-image-datamodule"
 data: # threestudio/data/image.py -> SingleImageDataModuleConfig
   image_path: ./load/images/hamburger_rgba.png
-  height: [128]
-  width: [128]
+  height: 128
+  width: 128
   # resolution_milestones: [200]
   default_elevation_deg: 0.0
   default_azimuth_deg: 0.0
@@ -131,7 +131,7 @@ system:
       name: None
 
   loss:
-    lambda_sds: 100
+    lambda_sds: 100.
     lambda_rgb: 500.
     lambda_mask: 50.
     lambda_depth: 0. # 0.05

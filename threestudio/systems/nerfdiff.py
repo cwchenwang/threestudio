@@ -152,7 +152,6 @@ class NeRFDiff(BaseLift3DSystem):
                 )
 
             batch = batch_data
-            # batch = batch["random_camera"]
             ambient_ratio = (
                 self.cfg.ambient_ratio_min
                 + (1 - self.cfg.ambient_ratio_min) * random.random()

@@ -77,7 +77,7 @@ class NeRFDiffZero123Guidance(Zero123Guidance):
             noise_pred_cond - noise_pred_uncond
         )
 
-        x, eps = (x - sigma * noise_pred) / alpha, noise_pred
+        x, eps = (z - sigma * noise_pred) / alpha, noise_pred
         # x = x.clamp(-1, 1)  # clip the values to avoid large numbers
         return {
             "x": x,

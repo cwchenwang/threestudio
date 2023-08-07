@@ -33,7 +33,12 @@ class NeRFDiff(BaseLift3DSystem):
         # self.guidance_imgs = []
         self.diff_rgbs = [None] * self.cfg.num_finetune_views
         self.diff_epss = [None] * self.cfg.num_finetune_views
-        self.diff_misc = [None] * self.cfg.num_finetune_views
+        self.diff_misc = {
+            "alpha": [None] * self.cfg.num_finetune_views,
+            "sigma": [None] * self.cfg.num_finetune_views,
+            "z": [None] * self.cfg.num_finetune_views,
+            "first": [True] * self.cfg.num_finetune_views,
+        }
         self.guidance_imgs_info = {}  # rays etc.
         self.per_alternate_step = self.cfg.per_alternate_step
 
@@ -115,24 +120,24 @@ class NeRFDiff(BaseLift3DSystem):
                 name="guidance",
                 step=self.true_global_step,
             )
-            # diffusion step
-            for j, nerf_rgb in enumerate(nerf_rgbs):
-                ret = self.guidance.diffusion_step(
-                    j,
-                    t,
-                    nerf_rgb,
-                    self.diff_misc,
-                    self.diff_epss,
-                    self.guidance_imgs_info["elevation"][j : j + 1],
-                    self.guidance_imgs_info["azimuth"][j : j + 1],
-                    self.guidance_imgs_info["camera_distances"][j : j + 1],
-                    first_iter=(self.global_step == 0),
-                )
-                self.diff_rgbs[j] = ret["x"]
-                self.diff_epss[j] = ret["eps"]
-                self.diff_misc[j] = (ret["ts"], ret["alpha"], ret["sigma"], ret["z"])
-            if isinstance(self.diff_rgbs, list):
-                self.diff_rgbs = torch.cat(self.diff_rgbs)
+            # # diffusion step
+            # for j, nerf_rgb in enumerate(nerf_rgbs):
+            #     ret = self.guidance.diffusion_step(
+            #         j,
+            #         t,
+            #         nerf_rgb,
+            #         self.diff_misc,
+            #         self.diff_epss,
+            #         self.guidance_imgs_info["elevation"][j : j + 1],
+            #         self.guidance_imgs_info["azimuth"][j : j + 1],
+            #         self.guidance_imgs_info["camera_distances"][j : j + 1],
+            #         first_iter=(self.global_step == 0),
+            #     )
+            #     self.diff_rgbs[j] = ret["x"]
+            #     self.diff_epss[j] = ret["eps"]
+            #     self.diff_misc[j] = (ret["ts"], ret["alpha"], ret["sigma"], ret["z"])
+            # if isinstance(self.diff_rgbs, list):
+            #     self.diff_rgbs = torch.cat(self.diff_rgbs)
 
         if guidance == "ref":
             # bg_color = torch.rand_like(batch['rays_o'])
@@ -156,7 +161,6 @@ class NeRFDiff(BaseLift3DSystem):
                 self.cfg.ambient_ratio_min
                 + (1 - self.cfg.ambient_ratio_min) * random.random()
             )
-            diff_rgbs = self.diff_rgbs[idx]
 
         batch["bg_color"] = None
         batch["ambient_ratio"] = ambient_ratio
@@ -222,20 +226,31 @@ class NeRFDiff(BaseLift3DSystem):
                 )
         elif guidance == "zero123":
             # zero123
-            # guidance_out = self.guidance(
-            #     out["comp_rgb"],
-            #     **batch,
-            #     rgb_as_latents=False,
-            #     guidance_eval=guidance_eval,
-            #     max_step=self.trainer.max_steps,
-            #     cur_step=self.true_global_step
-            # )
+            t = int(
+                self.guidance.max_step
+                + 1
+                - self.global_step
+                / self.trainer.max_steps
+                * (self.guidance.max_step + 1 - self.guidance.min_step)
+            )
             guidance_out = self.guidance(
+                t,
+                idx,
+                self.diff_misc,
+                self.diff_epss,
                 out["comp_rgb"],
-                diff_rgbs,
                 **batch,
                 rgb_as_latents=False,
+                guidance_eval=guidance_eval,
+                max_step=self.trainer.max_steps,
+                cur_step=self.true_global_step,
             )
+            for i, j in enumerate(idx):
+                self.diff_epss[j] = guidance_out["eps"][i]
+                self.diff_misc["alpha"][j] = guidance_out["alpha"][i]
+                self.diff_misc["sigma"][j] = guidance_out["sigma"][i]
+                self.diff_misc["z"][j] = guidance_out["z"][i]
+
             # claforte: TODO: rename the loss_terms keys
             set_loss("sds", guidance_out["loss_sds"])
 
